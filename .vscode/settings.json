@@ -1,0 +1,9 @@
+{
+    "python.analysis.typeCheckingMode": "standards", //  Pylance Extension
+    "python.analysis.autoFormatStrings": true,
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.importFormat": "absolute",
+    "python.analysis.showOnlyDirectDependenciesInAutoImport": false,
+    "python.languageServer": "Pylance",
+    "pythonIndent.trimLinesWithOnlyWhitespace": true
+}
