@@ -3,6 +3,7 @@ AI powered utility that helps in application installation process for linux
 
 
 ## File Structure
+```
 slowpoke/
 ├── slowpoke/
 │   ├── __init__.py
@@ -31,4 +32,5 @@ slowpoke/
 ├── setup.py                  # Packaging config for pip
 ├── README.md
 └── LICENSE
+```
 
