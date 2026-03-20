@@ -1,36 +1,134 @@
 # slowpoke
-AI powered utility that helps in application installation process for linux
 
+`slowpoke` is a Linux-first, LLM-assisted package installer CLI.
 
-## File Structure
-```
+It detects the system package manager, asks for the app/package to install, resolves package names using LLMs, and executes a validated command plan only after dry-run confirmation.
+
+## Features
+
+- Linux distro and package manager detection (`apt`, `dnf`, `pacman`, `zypper`, `apk`, `flatpak`)
+- Pluggable LLM providers:
+  - Gemini
+  - OpenAI (ChatGPT API)
+  - xAI (Grok API)
+- Optional web-search fallback for installation docs when package-manager search fails
+- Structured command plans with safety validation (no raw shell execution, `shell=False`)
+- Dry-run first, explicit user confirmation before execution
+
+## Current project structure
+
+```text
 slowpoke/
-├── slowpoke/
-│   ├── __init__.py
-│   ├── cli.py                # Entry point for command-line interface
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── ai_interface.py   # Interacts with OpenAI/Anthropic/Gemini APIs
-│   │   ├── command_builder.py# Translates natural language → shell commands
-│   │   ├── executor.py       # Executes and monitors system commands
-│   │   ├── safety.py         # Detects and prevents dangerous operations
-│   │   └── logger.py         # Handles logs, output formatting
-│   ├── utils/
-│   │   ├── config.py         # API keys, constants, settings
-│   │   └── helpers.py        # Shared helper functions
-│   └── interface/
-│       ├── ui.py             # Manages user input/output (Rich-based)
-│       └── prompts.py        # Defines message templates
-│
+├── src/
+│   └── slowpoke/
+│       ├── __init__.py
+│       ├── __main__.py
+│       ├── cli.py
+│       ├── core/
+│       │   ├── config.py
+│       │   ├── logging.py
+│       │   └── orchestrator.py
+│       ├── system/
+│       │   ├── system_info.py
+│       │   └── package_managers/
+│       │       ├── base.py
+│       │       ├── apt.py
+│       │       ├── dnf.py
+│       │       ├── pacman.py
+│       │       ├── zypper.py
+│       │       ├── apk.py
+│       │       └── flatpak.py
+│       ├── llm/
+│       │   ├── base.py
+│       │   ├── prompts/
+│       │   │   ├── package_resolution.md
+│       │   │   └── install_plan_from_docs.md
+│       │   └── providers/
+│       │       ├── openai_compatible.py
+│       │       ├── gemini.py
+│       │       ├── chatgpt.py
+│       │       └── grok.py
+│       ├── execution/
+│       │   ├── command_model.py
+│       │   ├── safety.py
+│       │   └── executor.py
+│       ├── web/
+│       │   ├── search_client.py
+│       │   └── tavily_client.py
+│       └── utils/
+│           └── shell.py
 ├── tests/
-│   ├── test_ai_interface.py
-│   ├── test_command_builder.py
-│   ├── test_executor.py
-│   └── ...
-│
+├── .env.example
+├── pyproject.toml
 ├── requirements.txt
-├── setup.py                  # Packaging config for pip
-├── README.md
-└── LICENSE
+├── requirements-dev.txt
+└── README.md
+```
+
+## Setup
+
+```bash
+python -m pip install -e .
+```
+
+For development (tests + lint):
+
+```bash
+python -m pip install -e .[dev]
+```
+
+If you prefer requirements files:
+
+```bash
+python -m pip install -r requirements-dev.txt
+```
+
+## Configuration
+
+Copy `.env.example` to `.env` and set values you need:
+
+- `LLM_PROVIDER=gemini|openai|grok`
+- `LLM_MODEL=<model-name>`
+- `OPENAI_API_KEY=...`
+- `GEMINI_API_KEY=...`
+- `XAI_API_KEY=...`
+- `WEB_SEARCH_PROVIDER=tavily|none`
+- `TAVILY_API_KEY=...` (required if `WEB_SEARCH_PROVIDER=tavily`)
+- `AUTO_SUDO=true|false`
+- `LOG_LEVEL=INFO|DEBUG|...`
+- `SLOWPOKE_LOG_FILE=.slowpoke.log`
+
+## Usage
+
+Run with prompt:
+
+```bash
+slowpoke
+```
+
+Run directly with package name:
+
+```bash
+slowpoke neovim
+```
+
+Behavior:
+
+1. Detect Linux package manager.
+2. Search package candidates.
+3. Use configured LLM provider to resolve package/install plan.
+4. Fallback to docs-based plan using web search (if enabled).
+5. Show dry-run commands.
+6. Execute only after user confirmation.
+
+## Platform support
+
+- Supported: Linux
+- Not supported yet: Windows `winget`, macOS `brew`
+
+## Testing
+
+```bash
+python -m pytest -q
 ```
 
