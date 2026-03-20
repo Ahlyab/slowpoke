@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import slowpoke.system.system_info as system_info
 
 
@@ -16,8 +14,9 @@ def test_detect_package_manager_name(monkeypatch):
 
 
 def test_read_os_release_empty_when_missing(monkeypatch):
-    class FakePath(Path):
-        _flavour = Path(".")._flavour
+    class FakePath:
+        def __init__(self, *_args, **_kwargs):
+            pass
 
         def exists(self):
             return False

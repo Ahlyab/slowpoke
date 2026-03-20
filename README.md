@@ -1,3 +1,7 @@
+> **Under Construction**
+>
+> This project is actively being developed and behaviors/commands may change.
+
 # slowpoke
 
 `slowpoke` is a Linux-first, LLM-assisted package installer CLI.
@@ -95,6 +99,7 @@ Copy `.env.example` to `.env` and set values you need:
 - `WEB_SEARCH_PROVIDER=tavily|none`
 - `TAVILY_API_KEY=...` (required if `WEB_SEARCH_PROVIDER=tavily`)
 - `AUTO_SUDO=true|false`
+- `DEV_MODE=true|false` (when `true`, logs raw LLM/web API request and response payloads for debugging)
 - `LOG_LEVEL=INFO|DEBUG|...`
 - `SLOWPOKE_LOG_FILE=.slowpoke.log`
 
