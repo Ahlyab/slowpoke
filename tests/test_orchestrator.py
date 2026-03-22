@@ -6,6 +6,7 @@ import subprocess
 import pytest
 import slowpoke.core.orchestrator as orchestrator
 from slowpoke.core.orchestrator import build_docs_install_plan
+from slowpoke.execution.command_model import CommandStep
 from slowpoke.llm.base import LLMClient
 from slowpoke.web.search_client import SearchResult
 
@@ -343,6 +344,198 @@ class IncompleteDnfPlanLLM(LLMClient):
                 {"executable": "dnf", "args": ["install", "windsurf"], "needs_sudo": True, "rationale": "install"},
             ],
         }
+
+
+class DnfRepoAddLLM(LLMClient):
+    """Mimics LLM output that uses dnf5 `dnf repo add` instead of config-manager addrepo."""
+
+    def complete_json(self, *, system_prompt: str, user_prompt: str) -> dict:
+        return {
+            "reason": "dnf5 repo add",
+            "steps": [
+                {
+                    "executable": "rpm",
+                    "args": ["--import", "https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/yum/RPM-GPG-KEY-windsurf"],
+                    "needs_sudo": True,
+                    "rationale": "key",
+                },
+                {
+                    "executable": "dnf",
+                    "args": [
+                        "repo",
+                        "add",
+                        "windsurf",
+                        "--baseurl=https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/yum/repo/",
+                    ],
+                    "needs_sudo": True,
+                    "rationale": "repo",
+                },
+                {"executable": "dnf", "args": ["install", "windsurf"], "needs_sudo": True, "rationale": "install"},
+            ],
+        }
+
+
+def test_build_docs_install_plan_accepts_dnf_repo_add_as_repo_setup():
+    llm = DnfRepoAddLLM()
+    docs = [SearchResult(title="docs", url="https://example.com", snippet="Install windsurf")]
+    plan = build_docs_install_plan(
+        llm,
+        "windsurf",
+        docs,
+        distro_name="Fedora Linux 43",
+        package_manager_name="dnf",
+        dnf_variant="dnf5",
+    )
+    assert plan.source == "web+llm"
+    assert any(
+        s.executable == "dnf" and s.args[:2] == ["config-manager", "addrepo"] for s in plan.steps
+    )
+
+
+def test_normalize_dnf_repository_add_converts_to_config_manager_addrepo():
+    step = CommandStep(
+        executable="dnf",
+        args=[
+            "repository",
+            "add",
+            "--id",
+            "windsurf",
+            "--name",
+            "Windsurf",
+            "--baseurl",
+            "https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/yum/repo/",
+            "--gpgkey",
+            "https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/yum/RPM-GPG-KEY-windsurf",
+            "--gpgcheck",
+            "--enabled",
+        ],
+        needs_sudo=True,
+        rationale="repo",
+    )
+    out = orchestrator._normalize_dnf_step(step, "dnf5")
+    assert out.args[:2] == ["config-manager", "addrepo"]
+    assert "--id=windsurf" in out.args
+    assert any(a.startswith("--set=baseurl=") for a in out.args)
+    assert any(a.startswith("--set=gpgkey=") for a in out.args)
+
+
+def test_normalize_dnf_install_strips_foreign_arch_suffix(monkeypatch):
+    monkeypatch.setattr(orchestrator.platform, "machine", lambda: "x86_64")
+    step = CommandStep(
+        executable="dnf",
+        args=["install", "-y", "windsurf.aarch64"],
+        needs_sudo=True,
+        rationale="install",
+    )
+    out = orchestrator._normalize_dnf_step(step, "dnf5")
+    assert out.args == ["install", "-y", "windsurf"]
+
+
+def test_normalize_dnf_install_keeps_matching_arch_suffix(monkeypatch):
+    monkeypatch.setattr(orchestrator.platform, "machine", lambda: "x86_64")
+    step = CommandStep(
+        executable="dnf",
+        args=["install", "windsurf.x86_64"],
+        needs_sudo=True,
+        rationale="install",
+    )
+    out = orchestrator._normalize_dnf_step(step, "dnf5")
+    assert "windsurf.x86_64" in out.args
+
+
+def test_normalize_dnf_install_keeps_noarch(monkeypatch):
+    monkeypatch.setattr(orchestrator.platform, "machine", lambda: "x86_64")
+    step = CommandStep(
+        executable="dnf",
+        args=["install", "fonts-blah.noarch"],
+        needs_sudo=True,
+        rationale="install",
+    )
+    out = orchestrator._normalize_dnf_step(step, "dnf5")
+    assert "fonts-blah.noarch" in out.args
+
+
+def test_normalize_dnf_addrepo_rewrites_codeium_yum_arm64_on_x86_64(monkeypatch):
+    monkeypatch.setattr(orchestrator.platform, "machine", lambda: "x86_64")
+    arm_url = "https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/yum-arm64/repo/"
+    step = CommandStep(
+        executable="dnf",
+        args=[
+            "config-manager",
+            "addrepo",
+            "--id=windsurf",
+            f"--set=baseurl={arm_url}",
+            "--set=gpgcheck=1",
+        ],
+        needs_sudo=True,
+        rationale="repo",
+    )
+    out = orchestrator._normalize_dnf_step(step, "dnf5")
+    joined = " ".join(out.args)
+    assert "yum-arm64" not in joined
+    assert "yum/repo" in joined
+
+
+def test_normalize_dnf_addrepo_keeps_matching_tree(monkeypatch):
+    monkeypatch.setattr(orchestrator.platform, "machine", lambda: "x86_64")
+    ok_url = "https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/yum/repo/"
+    step = CommandStep(
+        executable="dnf",
+        args=["config-manager", "addrepo", f"--set=baseurl={ok_url}"],
+        needs_sudo=True,
+        rationale="repo",
+    )
+    out = orchestrator._normalize_dnf_step(step, "dnf5")
+    assert ok_url in " ".join(out.args)
+
+
+def test_extract_yum_repo_hints_prefers_non_arm64_baseurl():
+    docs = [
+        SearchResult(
+            title="Download",
+            url="https://windsurf.com/editor/download",
+            snippet=(
+                "baseurl=https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/yum-arm64/repo/ "
+                "baseurl=https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/yum/repo/ "
+                "gpgkey=https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/yum/RPM-GPG-KEY-windsurf"
+            ),
+        )
+    ]
+    hints = orchestrator._extract_yum_repo_hints_from_docs(docs)
+    assert hints is not None
+    assert "arm64" not in hints["baseurl"].lower()
+    assert hints["baseurl"].endswith("/yum/repo/")
+
+
+WINDSURF_REPO_SNIPPET = """
+Download for rpm. baseurl=https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/yum/repo/
+gpgkey=https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/yum/RPM-GPG-KEY-windsurf
+"""
+
+
+def test_build_docs_install_plan_injects_repo_from_snippets_when_llm_omits_repo():
+    """LLM may only output rpm + dnf install (no tee); snippets often still contain baseurl/gpgkey."""
+    llm = IncompleteDnfPlanLLM()
+    docs = [
+        SearchResult(
+            title="Download Windsurf Editor",
+            url="https://windsurf.com/editor/download",
+            snippet=WINDSURF_REPO_SNIPPET,
+        )
+    ]
+    plan = build_docs_install_plan(
+        llm,
+        "windsurf",
+        docs,
+        distro_name="Fedora Linux 43",
+        package_manager_name="dnf",
+        dnf_variant="dnf5",
+    )
+    assert plan.source == "web+llm"
+    assert any(
+        s.executable == "dnf" and len(s.args) >= 2 and s.args[0] == "config-manager" and s.args[1] == "addrepo"
+        for s in plan.steps
+    )
 
 
 def test_build_docs_install_plan_rejects_incomplete_dnf_install_plan():
