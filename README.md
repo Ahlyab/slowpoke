@@ -10,7 +10,7 @@ It detects the system package manager, asks for the app/package to install, reso
 
 ## Features
 
-- Linux distro and package manager detection (`apt`, `dnf`, `pacman`, `zypper`, `apk`, `flatpak`)
+- Linux distro and package manager detection (see **Package managers** below for support status)
 - Pluggable LLM providers:
   - Gemini
   - OpenAI (ChatGPT API)
@@ -18,6 +18,19 @@ It detects the system package manager, asks for the app/package to install, reso
 - Optional web-search fallback for installation docs when package-manager search fails
 - Structured command plans with safety validation (no raw shell execution, `shell=False`)
 - Dry-run first, explicit user confirmation before execution
+
+## Package managers
+
+| Package manager | Status |
+| ---------------- | ------ |
+| **DNF** | ✓ Supported |
+| **APT** | Will be implemented soon |
+| **Pacman** | Will be implemented soon |
+| **Zypper** | Will be implemented soon |
+| **APK** | Will be implemented soon |
+| **Flatpak** | Will be implemented soon |
+
+Detection may still pick any of these when their CLI is present on the system; behavior beyond **DNF** is not fully implemented yet.
 
 ## Current project structure
 
