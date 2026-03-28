@@ -1,152 +1,197 @@
-> **Under Construction**
->
-> This project is actively being developed and behaviors/commands may change.
-
 # slowpoke
 
-`slowpoke` is a Linux-first, LLM-assisted package installer CLI.
+**Install Linux packages with plain English — powered by LLMs, gated by you.**
 
-It detects the system package manager, asks for the app/package to install, resolves package names using LLMs, and executes a validated command plan only after dry-run confirmation.
+> 🚧 *Active development: commands and behavior may change between releases.*
+
+---
+
+## What it does
+
+**slowpoke** is a Linux-first CLI that turns “I want this app” into a **reviewed, structured install plan**. It figures out your distro and package manager, asks an LLM to resolve the right package names, optionally falls back to web docs when search comes up empty, shows a **dry-run** of exactly what would run, and **only executes after you confirm**. No arbitrary shell strings — plans are validated and executed with `shell=False`.
+
+---
+
+## Why this exists
+
+Installing software on Linux still means remembering package names, meta-packages, and manager-specific flags. Docs are scattered, and copy-pasting random `curl | bash` snippets is risky.
+
+slowpoke meets you in natural language, keeps the risky parts **out of the shell** until you’ve seen the plan, and makes the happy path: **detect → resolve → preview → confirm → run**.
+
+---
 
 ## Features
 
-- Linux distro and package manager detection (see **Package managers** below for support status)
-- Pluggable LLM providers:
-  - Gemini
-  - OpenAI (ChatGPT API)
-  - xAI (Grok API)
-- Optional web-search fallback for installation docs when package-manager search fails
-- Structured command plans with safety validation (no raw shell execution, `shell=False`)
-- Dry-run first, explicit user confirmation before execution
+- **Distro & package manager detection** — adapts to what your system actually uses
+- **LLM-assisted package resolution** — maps “what I want” to concrete package names
+- **Multiple LLM backends** — OpenAI, Gemini, xAI (Grok-compatible API)
+- **Optional web search** — when local search isn’t enough, use docs-backed planning (e.g. Tavily)
+- **Structured command plans** — validated steps, not raw shell; execution uses `shell=False`
+- **Dry-run first** — you see every command before anything runs
+- **Explicit confirmation** — installs only after you approve (with an opt-in non-interactive flag for automation)
 
-## Package managers
+---
 
-| Package manager | Status |
-| ---------------- | ------ |
-| **DNF** | ✓ Supported |
-| **APT** | Will be implemented soon |
-| **Pacman** | Will be implemented soon |
-| **Zypper** | Will be implemented soon |
-| **APK** | Will be implemented soon |
-| **Flatpak** | Will be implemented soon |
+## Demo
 
-Detection may still pick any of these when their CLI is present on the system; behavior beyond **DNF** is not fully implemented yet.
+Typical interactive session:
 
-## Current project structure
+```bash
+$ slowpoke neovim
+Loading configuration done.
+Detecting Linux system done.
+Initializing providers done.
+Building install plan for 'neovim' done.
+Detected distro: Fedora Linux 40 (Workstation Edition)
+Detected package manager: dnf
 
-```text
-slowpoke/
-├── src/
-│   └── slowpoke/
-│       ├── __init__.py
-│       ├── __main__.py
-│       ├── cli.py
-│       ├── core/
-│       │   ├── config.py
-│       │   ├── logging.py
-│       │   └── orchestrator.py
-│       ├── system/
-│       │   ├── system_info.py
-│       │   └── package_managers/
-│       │       ├── base.py
-│       │       ├── apt.py
-│       │       ├── dnf.py
-│       │       ├── pacman.py
-│       │       ├── zypper.py
-│       │       ├── apk.py
-│       │       └── flatpak.py
-│       ├── llm/
-│       │   ├── base.py
-│       │   ├── prompts/
-│       │   │   ├── package_resolution.md
-│       │   │   └── install_plan_from_docs.md
-│       │   └── providers/
-│       │       ├── openai_compatible.py
-│       │       ├── gemini.py
-│       │       ├── chatgpt.py
-│       │       └── grok.py
-│       ├── execution/
-│       │   ├── command_model.py
-│       │   ├── safety.py
-│       │   └── executor.py
-│       ├── web/
-│       │   ├── search_client.py
-│       │   └── tavily_client.py
-│       └── utils/
-│           └── shell.py
-├── tests/
-├── .env.example
-├── pyproject.toml
-├── requirements.txt
-├── requirements-dev.txt
-└── README.md
+Dry-run plan:
+1. sudo dnf install -y neovim
+   reason: Neovim editor from official repositories
+
+Execute these commands? [y/N]: y
+Executing plan done.
+Installation workflow completed successfully.
 ```
 
-## Setup
+Prompt for the package interactively:
+
+```bash
+$ slowpoke
+Which package/app do you want to install? ripgrep
+# ... same flow: dry-run, then confirmation ...
+```
+
+---
+
+## Supported package managers
+
+| Manager   | Status              |
+| --------- | ------------------- |
+| **DNF**   | Fully supported     |
+| **APT**   | Planned / in progress |
+| **Pacman** | Planned / in progress |
+| **Zypper** | Planned / in progress |
+| **APK**   | Planned / in progress |
+| **Flatpak** | Planned / in progress |
+
+Detection may still recognize these tools when present; **only DNF is fully implemented** today.
+
+---
+
+## Installation
+
+From a clone of this repository:
 
 ```bash
 python -m pip install -e .
 ```
 
-For development (tests + lint):
+**Development** (tests + tooling):
 
 ```bash
 python -m pip install -e .[dev]
-```
-
-If you prefer requirements files:
-
-```bash
+# or
 python -m pip install -r requirements-dev.txt
 ```
 
+**Platform:** Linux is supported. Windows (`winget`) and macOS (`brew`) are not targeted yet.
+
+---
+
 ## Configuration
 
-Copy `.env.example` to `.env` and set values you need:
+Copy `.env.example` to `.env` and set the variables you need.
 
-- `LLM_PROVIDER=gemini|openai|grok`
-- `LLM_MODEL=<model-name>`
-- `OPENAI_API_KEY=...`
-- `GEMINI_API_KEY=...`
-- `XAI_API_KEY=...`
-- `WEB_SEARCH_PROVIDER=tavily|none`
-- `TAVILY_API_KEY=...` (required if `WEB_SEARCH_PROVIDER=tavily`)
-- `AUTO_SUDO=true|false`
-- `DEV_MODE=true|false` (when `true`, logs raw LLM/web API request and response payloads for debugging)
-- `LOG_LEVEL=INFO|DEBUG|...`
-- `SLOWPOKE_LOG_FILE=.slowpoke.log`
+| Variable | Purpose |
+| -------- | ------- |
+| `LLM_PROVIDER` | `gemini`, `openai`, or `grok` |
+| `LLM_MODEL` | Model name for your provider |
+| `OPENAI_API_KEY` | OpenAI API key |
+| `GEMINI_API_KEY` | Google Gemini API key |
+| `XAI_API_KEY` | xAI (Grok) API key |
+| `WEB_SEARCH_PROVIDER` | `tavily` or `none` |
+| `TAVILY_API_KEY` | Required if using Tavily search |
+| `AUTO_SUDO` | `true` or `false` — prefix `sudo` when appropriate |
+| `DEV_MODE` | `true` logs raw LLM/web payloads (debugging) |
+| `LOG_LEVEL` | e.g. `INFO`, `DEBUG` |
+| `SLOWPOKE_LOG_FILE` | Log file path (default `.slowpoke.log`) |
+
+---
 
 ## Usage
 
-Run with prompt:
+| Command | Description |
+| ------- | ----------- |
+| `slowpoke` | Prompts: “Which package/app do you want to install?” |
+| `slowpoke <name>` | Builds a plan for `<name>` (e.g. `slowpoke neovim`) |
+| `slowpoke --yes` | Skips the confirmation prompt after the dry-run (use with care) |
 
-```bash
-slowpoke
+**Flow:**
+
+1. Detect Linux distro and package manager  
+2. Search for package candidates where applicable  
+3. Use the configured LLM to resolve names / plan steps  
+4. Optionally use web search for a docs-based plan if search fails  
+5. Print a **dry-run** list of commands (with short reasons when available)  
+6. **Execute only if you confirm** (unless `--yes`)
+
+---
+
+## Project structure
+
+```text
+slowpoke/
+├── src/slowpoke/
+│   ├── cli.py                 # CLI entry
+│   ├── core/                  # config, logging, orchestration
+│   ├── system/                # distro detection + package_managers/
+│   ├── llm/                   # providers + prompts
+│   ├── execution/             # command model, safety, executor
+│   └── web/                   # optional search clients
+├── tests/
+├── pyproject.toml
+├── requirements.txt
+└── requirements-dev.txt
 ```
 
-Run directly with package name:
+Architecture is **modular**: new LLM providers and package manager backends plug in without bolting on raw shell.
 
-```bash
-slowpoke neovim
-```
+---
 
-Behavior:
+## Roadmap
 
-1. Detect Linux package manager.
-2. Search package candidates.
-3. Use configured LLM provider to resolve package/install plan.
-4. Fallback to docs-based plan using web search (if enabled).
-5. Show dry-run commands.
-6. Execute only after user confirmation.
+Ideas contributors often care about:
 
-## Platform support
+- **First-class support** for APT, Pacman, Zypper, APK, and Flatpak (stubs exist; DNF is the reference implementation)
+- **Broader distros** and edge cases in detection
+- **Safer defaults** and clearer UX around `sudo` and confirmation
+- **Tests and docs** as behaviors stabilize
 
-- Supported: Linux
-- Not supported yet: Windows `winget`, macOS `brew`
+If you want to help, pick an item, open an issue to avoid duplicate work, and send a focused PR.
 
-## Testing
+---
+
+## Contributing
+
+We welcome issues and pull requests from Linux users, developers, and anyone who cares about **safe**, **boring** installs.
+
+**Please read [CONTRIBUTING.md](CONTRIBUTING.md)** for branch workflow, coding expectations, and how to run tests locally.
+
+Quick check before you open a PR:
 
 ```bash
 python -m pytest -q
 ```
 
+---
+
+## Vision
+
+**Package management should be predictable.** slowpoke uses LLMs as a **translator and planner**, not as a blind shell — so you stay in control, see every step, and only run what you approve. The goal is a small, trustworthy tool that feels natural to use and **straightforward to extend**.
+
+---
+
+<p align="center">
+  <sub>Built for people who love Linux and dislike surprises in their terminal.</sub>
+</p>
